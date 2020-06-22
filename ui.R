@@ -21,7 +21,8 @@ fluidPage(
              The app is intended to aid in exploration rather than convey a particular message.
              There are three parts to the site: the first is the datatable and tools for filtering it.
              This data is fed into four barplots and one map.
-             The map has popups for both states, and 'hotspots', which are defind as places with five or more shootings.
+             The map has popups for both states, and 'hotspots'.
+             Hotspots are defind as places with a certain number of shootings: 5 by default.
              To refresh the data used, simply use the refresh button.
              Finally, one can has some control over how the data is binned for the plots."),
            fluidRow(
@@ -80,17 +81,26 @@ fluidPage(
   )
   ,
   fluidRow(
-    column(3,
-           actionButton('refresh','Refresh Visuals and Map')
+    column(2,
+           actionButton('refresh','Refresh Visuals & Map')
            ),
-    column(3,
+    column(1,
            radioButtons('age_bin_size','Age Bin Size (Years)',
                         choices = c(1,2,4,5,10,20,25,33,50),
                         inline = TRUE, selected = 10)
            ),
-    column(3,
+    column(1,
            radioButtons('date_bins','Date Bins',c( 'Years','Months', 'Years & Months' ), selected = 'Years' )
-           )
+           ),
+    column(2,
+           sliderInput('flee_bin','Pool fleeing for cases under percentage', min = 0, max = 50, value = 10, step = 0.5)
+           ),
+    column(2,
+           sliderInput('race_bins','Pool Races Under Percentage', min = 0, max = 50, value = 10, step = 0.5)
+           ),
+    column(2,
+           sliderInput('armed_bin2','Pool Armaments Under Percentage', min = 0, max = 50, value = 5, step = 0.5)
+    )
     ),
   fluidRow(
     column(6,
@@ -107,6 +117,11 @@ fluidPage(
     column(6,
            shiny::plotOutput('plot4')
            )
+  ),
+  fluidRow(
+    column(2,
+           sliderInput('hotspot','Hotspot Threshold', min = 5, max = 100, value = 5, step = 1)
+    )
   ),
   fluidRow(
     column(11,

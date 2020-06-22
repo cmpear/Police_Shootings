@@ -10,36 +10,67 @@ library(tidyr)
 library(leaflet)
 library(rgdal)
 
-df <- readr::read_csv('fatal_police_shootings.csv',
-                      col_types = 'ccDccncccclcclcnn')
 
-
-string_eval <- function(s, vec){
-  if(length(s) > 1){
-    s <- (sapply(s, string_eval, vec = vec )  )
-    return(apply(s, MARGIN = 1, FUN = 'all'))
-  }
-  s <- stringr::str_trim(s, 'left')
-  if (grepl('-', s) ){
-    s <- stringr::str_replace(s, '-', '')
-    return(!grepl(s, vec) )
-  }
-  return(grepl(s, vec))
-}
-
-state_to_abb <- function(state){
-  if (length(state)>1){
-    return(sapply(state, state_to_abb) )
-  }
-  else if(state == 'District of Columbia') {
-    return('DC')
-  }
-  return(state.abb[state.name == state] )
-}
 
 function(input, output) {
+  
+  df <- readr::read_csv('fatal_police_shootings.csv',
+                        col_types = 'ccDccncccclcclcnn')
+  
+  string_eval <- function(s, vec){
+    if(length(s) > 1){
+      s <- (sapply(s, string_eval, vec = vec )  )
+      return(apply(s, MARGIN = 1, FUN = 'all'))
+    }
+    s <- stringr::str_trim(s, 'left')
+    if (grepl('-', s) ){
+      s <- stringr::str_replace(s, '-', '')
+      return(!grepl(s, vec) )
+    }
+    return(grepl(s, vec))
+  }
+  
+  state_to_abb <- function(state){
+    if (length(state)>1){
+      return(sapply(state, state_to_abb) )
+    }
+    else if(state == 'District of Columbia') {
+      return('DC')
+    }
+    return(state.abb[state.name == state] )
+  }
+  
+  PoolRace <- function(df = my_df){
+    df %>%
+      group_by(RACE) %>%
+      mutate('PERCENT' = length(RACE) / my_nrow * 100) %>%
+      ungroup() %>%
+      mutate('RACE' = if_else(PERCENT >= input$race_bins, RACE, 'Other') ) %>%
+      select(- PERCENT ) %>% 
+      return()
+  }
+  PoolArmaments <- function(df = my_df){
+    df %>%
+      group_by(ARMED_BIN) %>%
+      mutate('PERCENT' = length(ARMED_BIN) / my_nrow * 100) %>%
+      ungroup() %>%
+      mutate('ARMED_BIN' = if_else(PERCENT >= input$armed_bin2, ARMED_BIN, 'other') ) %>%
+      select(- PERCENT ) %>% 
+      return()
+  }
+  PoolFleeing <- function(df = my_df){
+    df %>%
+      group_by(FLEE) %>%
+      mutate('PERCENT' = length(FLEE) / my_nrow * 100) %>%
+      ungroup() %>%
+      mutate('FLEE' = if_else(PERCENT >= input$flee_bin, FLEE, 'Other') ) %>%
+      select(- PERCENT) %>%
+      return()
+  }
+  
   full_df <- TRUE
   my_df <- NULL
+  my_nrow <- NULL
   #  logi <- rep(TRUE, nrow(df) )
   
   # Filter data based on selections
@@ -128,6 +159,7 @@ function(input, output) {
     
     
     my_df <<- df[logi,]  # more space for faster speeds
+    my_nrow <<- nrow(my_df)
     full_df <<- nrow(my_df) == nrow(df)
     return(my_df )
   }))
@@ -140,18 +172,19 @@ function(input, output) {
   # PLOT 1 ####
   output$plot <- shiny::renderPlot(expr = {
     input$refresh
+
     if(input$date_bins == 'Months'){
-      rPlot <- my_df %>%
+      rPlot <- PoolRace() %>%
         mutate( 'PERIOD' = lubridate::month(DATE) ) %>%
         ggplot( aes(x = PERIOD) ) + ggtitle('Monthly Police Shootings by Race (years pooled')
     }
     else if (input$date_bins == 'Years'){
-      rPlot <- my_df %>%
+      rPlot <- PoolRace() %>%
         mutate( 'PERIOD' = lubridate::year(DATE) ) %>%
         ggplot( aes(x = PERIOD, col = hcl(240), fill = hcl(240, alpha = 0.6) ) )  + ggtitle('Yearly Police Shootings by Race')
     }
     else{
-      rPlot <- my_df %>%
+      rPlot <- PoolRace() %>%
         mutate( 'YEAR' = lubridate::year(DATE), 'MONTH' = lubridate::month(DATE) ) %>%
         mutate( 'PERIOD' = paste(YEAR, stringr::str_pad(MONTH, width = 2, side = 'left', pad = '0') ), sep = '-' ) %>%
         ggplot( aes(x = PERIOD) ) + ggtitle('Police Shootings by Year, Month and Race')
@@ -163,7 +196,7 @@ function(input, output) {
   output$plot2 <- shiny::renderPlot(expr = {
     input$refresh
     k <- as.numeric(input$age_bin_size)
-    rPlot <- my_df %>%
+    rPlot <- PoolRace() %>%
       mutate( 'AGE' = trunc( AGE / k ) * k  ) %>%
       mutate( 'AGE' = paste( stringr::str_pad(as.character(AGE), width = 2, pad = '0' ),
                              stringr::str_pad(as.character(AGE + k - 1), width = 2, pad = '0'), sep = ' to ') ) %>%
@@ -175,7 +208,9 @@ function(input, output) {
   # PLOT 3 ####
   output$plot3 <- shiny::renderPlot(expr = {
     input$refresh
-    rPlot <- my_df %>%
+    rPlot <- PoolRace() %>%
+      PoolArmaments() %>%
+      PoolFleeing() %>%
       ggplot( aes(x = RACE, col = RACE, fill = RACE ) ) + geom_bar(stat = 'count', alpha = 0.6) + facet_grid(ARMED_BIN ~ FLEE) + 
       scale_fill_brewer(palette = 'Spectral') + ggtitle('Police shootings by Weapon, Race, and Whether/How Suspect Flees')
     return(rPlot  + theme(axis.text.x = element_text(angle = 90) ) )
@@ -183,7 +218,6 @@ function(input, output) {
   # PLOT 4 ####
   output$plot4 <- shiny::renderPlot(expr = {
     input$refresh
-    print(names(my_df) )
     rPlot <- my_df %>%
       transmute('BODY_CAM' = BODY_CAM,
                 'ILLNESS' = MENTAL_ILLNESS_SIGNS,
@@ -202,44 +236,67 @@ function(input, output) {
   # MAP ####
   output$map <- leaflet::renderLeaflet({
     input$refresh
+
     geo <- readOGR(dsn = 'cb_2018_us_state_500k/cb_2018_us_state_500k.shp', stringsAsFactors = FALSE)
+    mypalette <- leaflet::colorNumeric(palette = 'magma',
+                                       domain = geo@data$DEPARTED, na.color = 'transparent', alpha = 1)
+    
     temp <- my_df %>%
       group_by(STATE) %>%
       mutate( STATEWIDE_DEATHS = length(STATE) ) %>%
       ungroup() %>%
       group_by(CITY, LAT, LONG) %>%
-      mutate(DEPARTED = length(CITY) ) %>%
-      mutate(GROUPING = if_else(DEPARTED >= 5, CITY, STATE),
-             GROUPED_BY = if_else(DEPARTED >= 5, 'CITY', 'STATE') ) %>%
-      ungroup() %>%
-      group_by(GROUPING, GROUPED_BY) %>%
-      summarize(DEPARTED = length(GROUPING), LAT = mean(LAT), LONG = mean(LONG), STATEWIDE_DEATHS = mean(STATEWIDE_DEATHS) )
+      mutate(DEPARTED = length(CITY) )
     
-    cities <- temp[temp$GROUPED_BY == 'CITY', c('GROUPING', 'DEPARTED', 'LAT', 'LONG')] %>%
-      rename('CITY' = GROUPING)
-    states <- temp[temp$GROUPED_BY == 'STATE', c('GROUPING', 'DEPARTED', 'LAT', 'LONG', 'STATEWIDE_DEATHS')] %>%
-      rename('STUSPS' = GROUPING)
-    
-    geo@data <- geo@data %>%
-      full_join(states, by = 'STUSPS') %>%
-      rename('STATE' = STUSPS)
-    
-    mypalette <- leaflet::colorNumeric(palette = 'magma',
-                                       domain = geo@data$DEPARTED, na.color = 'transparent', alpha = 1)
-    # can add data with addMarkers and addPolygons rather than leaflet()
-    leaflet(geo) %>% 
-      addMarkers(lng = cities$LONG, lat = cities$LAT,
-                  popup = ~ paste( sep = "<br/>",
-                           paste0('<b>',toupper(cities$CITY),'</b>'),
-                           paste0('<b>DEPARTED: </b>',  as.character(cities$DEPARTED) )
-                           ) ) %>%
-      addPolygons(fillColor = ~mypalette(geo@data$DEPARTED), fillOpacity = 0.7, weight = 1,
-                  popup = ~ paste( sep = "<br/>",
-                                   paste0('<b>',toupper(NAME),'</b>'),
-                                   paste0('<b>DEPARTED (no hotspots): </b>',  as.character(DEPARTED) ),
-                                   paste0('<b>DEPARTED (w/ hotspots): </b>',  as.character(STATEWIDE_DEATHS) )
-                  ) ) %>%
-      addProviderTiles(providers$Stamen.Toner) %>% 
-      setView(lng = mean(range(cities$LONG)), lat = mean(range(cities$LAT)), zoom = 4)
+    if (input$hotspot > max(temp$DEPARTED) ){
+      temp <- temp %>%
+        ungroup() %>%
+        group_by(STATE) %>%
+        summarize(STATEWIDE_DEATHS = length(STATE)) %>%
+        ungroup() %>%
+        rename('STUSPS' = STATE)
+      geo@data <- geo@data %>%
+        full_join(temp, by = 'STUSPS') %>%
+        rename('STATE' = STUSPS)
+      leaflet(geo) %>%
+        addPolygons(fillColor = ~mypalette(geo@data$STATEWIDE_DEATHS), fillOpacity = 0.7, weight = 1,
+                    popup = ~ paste( sep = "<br/>",
+                                     paste0('<b>',toupper(geo@data$STATE),'</b>'),
+                                     paste0('<b>STATEWIDE SHOOTINGS',as.character(geo@data$STATEWIDE_DEATHS),'</b>' ) )
+                    ) %>%
+        addProviderTiles(providers$Stamen.Toner) %>% 
+        setView(lng = -106, lat = 56, zoom = 4)
+    }
+    else{
+      temp <- temp%>%
+        mutate(GROUPING = if_else(DEPARTED >= input$hotspot, CITY, STATE),
+               GROUPED_BY = if_else(DEPARTED >= input$hotspot, 'CITY', 'STATE') ) %>%
+        ungroup() %>%
+        group_by(GROUPING, GROUPED_BY) %>%
+        summarize(DEPARTED = length(GROUPING), LAT = mean(LAT), LONG = mean(LONG), STATEWIDE_DEATHS = mean(STATEWIDE_DEATHS) )
+      cities <- temp[temp$GROUPED_BY == 'CITY', c('GROUPING', 'DEPARTED', 'LAT', 'LONG')] %>%
+        rename('CITY' = GROUPING)
+      states <- temp[temp$GROUPED_BY == 'STATE', c('GROUPING', 'DEPARTED', 'LAT', 'LONG', 'STATEWIDE_DEATHS')] %>%
+        rename('STUSPS' = GROUPING)
+      
+      geo@data <- geo@data %>%
+        full_join(states, by = 'STUSPS') %>%
+        rename('STATE' = STUSPS)
+      # can add data with addMarkers and addPolygons rather than leaflet()
+      leaflet(geo) %>% 
+        addMarkers(lng = cities$LONG, lat = cities$LAT,
+                   popup = ~ paste( sep = "<br/>",
+                                    paste0('<b>',toupper(cities$CITY),'</b>'),
+                                    paste0('<b>DEPARTED: </b>',  as.character(cities$DEPARTED) )
+                   ) ) %>%
+        addPolygons(fillColor = ~mypalette(geo@data$DEPARTED), fillOpacity = 0.7, weight = 1,
+                    popup = ~ paste( sep = "<br/>",
+                                     paste0('<b>',toupper(NAME),'</b>'),
+                                     paste0('<b>DEPARTED (no hotspots): </b>',  as.character(DEPARTED) ),
+                                     paste0('<b>DEPARTED (w/ hotspots): </b>',  as.character(STATEWIDE_DEATHS) )
+                    ) ) %>%
+        addProviderTiles(providers$Stamen.Toner) %>% 
+        setView(lng = mean(range(cities$LONG)), lat = mean(range(cities$LAT)), zoom = 4)
+    }
   })
 }
