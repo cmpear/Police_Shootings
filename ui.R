@@ -18,10 +18,12 @@ fluidPage(
     column(4,
            downloadButton("downloadData", "Download"),
            helpText("This site is built to help explore the police shootings dataset assembled by the Washington Post.
-             The data has been cleaned a little to work better with this app.
-             The data can be filtered using the buttoms below, or by employing the table\'s builtin search function.
-             When you have the data you want, use the Download button to save your work.
-             Dashboard with visuals to come in next version."),
+             The app is intended to aid in exploration rather than convey a particular message.
+             There are three parts to the site: the first is the datatable and tools for filtering it.
+             This data is fed into four barplots and one map.
+             The map has popups for both states, and 'hotspots', which are defind as places with five or more shootings.
+             To refresh the data used, simply use the refresh button.
+             Finally, one can has some control over how the data is binned for the plots."),
            fluidRow(
              column(3),
              column(9,
@@ -79,6 +81,9 @@ fluidPage(
   ,
   fluidRow(
     column(3,
+           actionButton('refresh','Refresh Visuals and Map')
+           ),
+    column(3,
            radioButtons('age_bin_size','Age Bin Size (Years)',
                         choices = c(1,2,4,5,10,20,25,33,50),
                         inline = TRUE, selected = 10)
@@ -99,7 +104,8 @@ fluidPage(
     column(6,
            shiny::plotOutput('plot3')
            ),
-    column(6
+    column(6,
+           shiny::plotOutput('plot4')
            )
   ),
   fluidRow(
